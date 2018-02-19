@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Homework4</string>
+    <string name="geoFencing_job_id">001</string>
+    <string name="distance_accurcy">100</string> <!-- in meters -->
 </resources>
