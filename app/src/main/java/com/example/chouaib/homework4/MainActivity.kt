@@ -25,9 +25,10 @@ class MainActivity : AppCompatActivity() {
     private val MY_PERMISSIONS_REQUEST_FINE_LOCATION = 101
 
     private lateinit var locationManager: LocationManager
-    private lateinit var lastLocation: Location
+    private var lastLocation: Location? = null
     private var locationGranted = false
     private lateinit var dbHelper: DatabaseManipulator.GeoMessagesDbHelper
+    private var geoFencingServiceLaunched = false
 
 
     // Define a listener that responds to location updates
@@ -76,14 +77,13 @@ class MainActivity : AppCompatActivity() {
                 // If request is cancelled, the result arrays are empty.
                 if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
                     this.startService(Intent(this, GeoFencingService::class.java))
+                    geoFencingServiceLaunched = true
                     locationGranted = true
                     setLocationPermissionStatus()
                     getLocation()
-
                 } else {
                     locationGranted = false
                     setLocationPermissionStatus()
-
                 }
                 return
             }
@@ -95,13 +95,15 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("MissingPermission")
     private fun getLocation(){
         lastLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-        setLocationInfo(lastLocation)
+        if (lastLocation!=null){
+            setLocationInfo(lastLocation)
+        }
         locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0.0F, locationListener)
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0.0F, locationListener)
     }
 
-    private fun setLocationInfo(location: Location){
-        val coordinates = "${location.latitude}, ${location.longitude}"
+    private fun setLocationInfo(location: Location?){
+        val coordinates = "${location?.latitude}, ${location?.longitude}"
         textViewCoordinatesDisplay.text = coordinates
     }
 
@@ -119,24 +121,32 @@ class MainActivity : AppCompatActivity() {
 
     fun onClickSaveNote(v: View) {
 
-        val geoMessagesEntry = DatabaseManipulator.GeoMessagesContract.GeoMessageEntry
+        if (lastLocation!=null) {
 
-        // Gets the data repository in write mode
-        val db = dbHelper.writableDatabase
-        val current = Calendar.getInstance().time
-        val noteCreationTime = SimpleDateFormat("dd/MM HH:mm", Locale.US).format(current)
+            if (!geoFencingServiceLaunched){
+                this.startService(Intent(this, GeoFencingService::class.java))
+                geoFencingServiceLaunched = true
+            }
 
-        // Create a new map of values, where column names are the keys
-        val values = ContentValues().apply {
-            put(geoMessagesEntry.COLUMN_NAME_TITLE, "${editTextTitle.text}")
-            put(geoMessagesEntry.COLUMN_NAME_MESSAGE, "${editTextMessage.text}")
-            put(geoMessagesEntry.COLUMN_NAME_LON, "${lastLocation.longitude}")
-            put(geoMessagesEntry.COLUMN_NAME_LAT, "${lastLocation.latitude}")
-            put(geoMessagesEntry.COLUMN_NAME_DATE, noteCreationTime)
+            val geoMessagesEntry = DatabaseManipulator.GeoMessagesContract.GeoMessageEntry
+
+            // Gets the data repository in write mode
+            val db = dbHelper.writableDatabase
+            val current = Calendar.getInstance().time
+            val noteCreationTime = SimpleDateFormat("dd/MM HH:mm", Locale.US).format(current)
+
+            // Create a new map of values, where column names are the keys
+            val values = ContentValues().apply {
+                put(geoMessagesEntry.COLUMN_NAME_TITLE, "${editTextTitle.text}")
+                put(geoMessagesEntry.COLUMN_NAME_MESSAGE, "${editTextMessage.text}")
+                put(geoMessagesEntry.COLUMN_NAME_LON, "${lastLocation?.longitude}")
+                put(geoMessagesEntry.COLUMN_NAME_LAT, "${lastLocation?.latitude}")
+                put(geoMessagesEntry.COLUMN_NAME_DATE, noteCreationTime)
+            }
+
+            // Insert the new row, returning the primary key value of the new row
+            val newRowId = db?.insert(geoMessagesEntry.TABLE_NAME, null, values)
         }
-
-        // Insert the new row, returning the primary key value of the new row
-        val newRowId = db?.insert(geoMessagesEntry.TABLE_NAME, null, values)
 
     }
 
