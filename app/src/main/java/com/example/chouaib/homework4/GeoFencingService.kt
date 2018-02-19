@@ -1,24 +1,31 @@
 package com.example.chouaib.homework4
 
+import android.app.Notification
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.location.Location
 import android.location.LocationManager
+import android.media.RingtoneManager
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.provider.BaseColumns
+import android.support.annotation.RequiresApi
 import android.util.Log
-
-// source of the bellow code: https://stackoverflow.com/questions/28535703/best-way-to-get-user-gps-location-in-background-in-android
 
 
 class GeoFencingService : Service() {
 
     private var mLocationManager: LocationManager? = null
     private lateinit var dbHelper: DatabaseManipulator.GeoMessagesDbHelper
+    private lateinit var mNM: NotificationManager
+    private var notificationON = false
+    private var launchedNotificationId = 1
 
-    private val DISTANCE_ACCURACY = getString(R.string.distance_accurcy).toFloat() // accuracy of the distance in meters
+    private val DISTANCE_ACCURACY = 50.0F // accuracy of the distance in meters
 
     var mLocationListeners = arrayOf(LocationListener(LocationManager.GPS_PROVIDER), LocationListener(LocationManager.NETWORK_PROVIDER))
 
@@ -30,6 +37,7 @@ class GeoFencingService : Service() {
             mLastLocation = Location(provider)
         }
 
+        @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
         override fun onLocationChanged(location: Location) {
             val coordinates = "${location.latitude}, ${location.longitude}"
 
@@ -66,6 +74,7 @@ class GeoFencingService : Service() {
         initializeLocationManager()
 
         dbHelper = DatabaseManipulator.GeoMessagesDbHelper(this)
+        mNM = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         try {
             mLocationManager!!.requestLocationUpdates(
@@ -104,6 +113,7 @@ class GeoFencingService : Service() {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
     private fun retrieveGeoNotes(currentlocation: Location) {
 
 
@@ -117,7 +127,9 @@ class GeoFencingService : Service() {
                 geoMessagesEntry.COLUMN_NAME_TITLE,
                 geoMessagesEntry.COLUMN_NAME_MESSAGE,
                 geoMessagesEntry.COLUMN_NAME_LAT,
-                geoMessagesEntry.COLUMN_NAME_LON)
+                geoMessagesEntry.COLUMN_NAME_LON,
+                geoMessagesEntry.COLUMN_NAME_DATE
+                )
 
         val cursor = db.query(
                 geoMessagesEntry.TABLE_NAME,   // The table to query
@@ -131,21 +143,92 @@ class GeoFencingService : Service() {
 
         with(cursor) {
             while(moveToNext()){
-                val lat = getDouble(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_LAT))
-                val lon = getDouble(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_LON))
-                val savedLocation = Location("point A")
-                savedLocation.latitude = lat
-                savedLocation.longitude = lon
-                val distance = currentlocation.distanceTo(savedLocation)
-                Log.e(TAG, "#### COMPUTED SISTANDE  ####    $distance ")
-                if (distance <= DISTANCE_ACCURACY) {
-                    val title = getDouble(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_TITLE))
-                    val message = getDouble(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_MESSAGE))
-                    // send notification
+                val id = getInt(getColumnIndexOrThrow(BaseColumns._ID))
+                if (id == launchedNotificationId){
+                    val lat = getDouble(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_LAT))
+                    val lon = getDouble(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_LON))
+
+                    val savedLocation = Location("point A")
+                    savedLocation.latitude = lat
+                    savedLocation.longitude = lon
+
+                    val coordinates = "${savedLocation.latitude}, ${savedLocation.longitude}"
+                    Log.e(TAG, "onLocationChanged: $coordinates")
+
+                    val distance = currentlocation.distanceTo(savedLocation)
+                    Log.e(TAG, "#### COMPUTED DISTANDE  ####    $distance ")
+
+                    if (distance > DISTANCE_ACCURACY) {
+                        // cancel notification
+                        mNM.cancel(launchedNotificationId)
+                        notificationON = !notificationON
+                    } else {
+                        // launch-update notification
+                        val title = getString(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_TITLE))
+                        val message = getString(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_MESSAGE))
+                        val creationDate = getString(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_DATE))
+                        if (notificationON){
+                            updateNotification(launchedNotificationId, title, message, creationDate, distance.toInt().toString())
+                        } else {
+                            showNotification(launchedNotificationId, title, message, creationDate, distance.toInt().toString())
+                            notificationON = !notificationON
+                        }
+                    }
                 }
             }
         }
 
+
+    }
+
+    @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
+    private fun showNotification(id: Int, title: String, message: String, creationDate: String, distance: String) {
+
+        Log.e(TAG, "#### SHOWING NOTIFICATION  ####    $id ")
+
+        // The PendingIntent to launch our activity if the user selects this notification
+        val contentIntent = PendingIntent.getActivity(this, 0,
+                Intent(this, R.layout.activity_main::class.java), 0)
+
+        val notificationSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+        // Set the info for the views that show in the notification panel.
+        val notification = Notification.Builder(this)
+                .setSmallIcon(R.drawable.notification_icon_background)
+                .setSound(notificationSound)
+                .setWhen(System.currentTimeMillis())
+                .setContentTitle(title)
+                .setContentText(message)
+                .setSubText("set on $creationDate | {$distance}m away")
+                .setContentIntent(contentIntent)
+                .build()
+
+        // Send the notification.
+        mNM.notify(id, notification)
+
+    }
+
+    @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
+    private fun updateNotification(id: Int, title: String, message: String, creationDate: String, distance: String) {
+
+        Log.e(TAG, "#### SHOWING NOTIFICATION  ####    $id ")
+
+        // The PendingIntent to launch our activity if the user selects this notification
+        val contentIntent = PendingIntent.getActivity(this, 0,
+                Intent(this, R.layout.activity_main::class.java), 0)
+
+        // Set the info for the views that show in the notification panel.
+        val notification = Notification.Builder(this)
+                .setSmallIcon(R.drawable.notification_icon_background)
+                .setWhen(System.currentTimeMillis())
+                .setContentTitle(title)
+                .setContentText(message)
+                .setSubText("set on $creationDate | ${distance}m away")
+                .setContentIntent(contentIntent)
+                .build()
+
+        // Send the notification.
+        mNM.notify(id, notification)
 
     }
 
@@ -158,7 +241,7 @@ class GeoFencingService : Service() {
 
     companion object {
         private val TAG = "GEO FENCING SERVICE"
-        private val LOCATION_INTERVAL = 3000
+        private val LOCATION_INTERVAL = 1000
         private val LOCATION_DISTANCE = 0.0F
     }
 }

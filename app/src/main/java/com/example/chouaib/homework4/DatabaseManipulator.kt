@@ -20,7 +20,7 @@ class DatabaseManipulator {
             const val COLUMN_NAME_MESSAGE = "message"
             const val COLUMN_NAME_LAT = "lat"
             const val COLUMN_NAME_LON = "lon"
-
+            const val COLUMN_NAME_DATE = "date"
         }
 
         const val SQL_CREATE_ENTRIES =
@@ -29,7 +29,8 @@ class DatabaseManipulator {
                         "${GeoMessageEntry.COLUMN_NAME_TITLE} TEXT," +
                         "${GeoMessageEntry.COLUMN_NAME_MESSAGE} TEXT," +
                         "${GeoMessageEntry.COLUMN_NAME_LAT} TEXT," +
-                        "${GeoMessageEntry.COLUMN_NAME_LON} TEXT)"
+                        "${GeoMessageEntry.COLUMN_NAME_LON} TEXT," +
+                        "${GeoMessageEntry.COLUMN_NAME_DATE} TEXT)"
 
         const val SQL_DELETE_ENTRIES = "DROP TABLE IF EXISTS ${GeoMessageEntry.TABLE_NAME}"
 

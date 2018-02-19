@@ -14,9 +14,10 @@ import android.graphics.Color
 import android.os.Build
 import android.support.annotation.RequiresApi
 import android.support.v4.content.ContextCompat
-import android.util.Log
 import android.view.View
 import kotlinx.android.synthetic.main.activity_main.*
+import java.text.SimpleDateFormat
+import java.util.*
 
 
 class MainActivity : AppCompatActivity() {
@@ -65,12 +66,6 @@ class MainActivity : AppCompatActivity() {
                     this, arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), MY_PERMISSIONS_REQUEST_FINE_LOCATION)
         }
 
-        if (locationGranted) {
-            Log.e("IN MAIN", " LOCATION IS GRANTED, STARTING SCHEDULE GEO FENCING SERVICE")
-            this.startService(Intent(this, GeoFencingService::class.java))
-        } else {
-            textViewCoordinatesDisplay.text = "Please grant location access first"
-        }
     }
 
     @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
@@ -80,6 +75,7 @@ class MainActivity : AppCompatActivity() {
             MY_PERMISSIONS_REQUEST_FINE_LOCATION -> {
                 // If request is cancelled, the result arrays are empty.
                 if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                    this.startService(Intent(this, GeoFencingService::class.java))
                     locationGranted = true
                     setLocationPermissionStatus()
                     getLocation()
@@ -127,6 +123,8 @@ class MainActivity : AppCompatActivity() {
 
         // Gets the data repository in write mode
         val db = dbHelper.writableDatabase
+        val current = Calendar.getInstance().time
+        val noteCreationTime = SimpleDateFormat("dd/MM HH:mm", Locale.US).format(current)
 
         // Create a new map of values, where column names are the keys
         val values = ContentValues().apply {
@@ -134,12 +132,12 @@ class MainActivity : AppCompatActivity() {
             put(geoMessagesEntry.COLUMN_NAME_MESSAGE, "${editTextMessage.text}")
             put(geoMessagesEntry.COLUMN_NAME_LON, "${lastLocation.longitude}")
             put(geoMessagesEntry.COLUMN_NAME_LAT, "${lastLocation.latitude}")
+            put(geoMessagesEntry.COLUMN_NAME_DATE, noteCreationTime)
         }
 
         // Insert the new row, returning the primary key value of the new row
         val newRowId = db?.insert(geoMessagesEntry.TABLE_NAME, null, values)
 
-        textViewCoordinatesDisplay.text = newRowId.toString()
     }
 
 }
