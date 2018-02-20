@@ -131,6 +131,9 @@ class GeoFencingService : Service() {
                 geoMessagesEntry.COLUMN_NAME_DATE
                 )
 
+        val orderBy = "ROWID DESC"
+        val limit = "1"
+
         val cursor = db.query(
                 geoMessagesEntry.TABLE_NAME,   // The table to query
                 projection,             // The columns to return
@@ -138,41 +141,41 @@ class GeoFencingService : Service() {
                 null,          // The values for the WHERE clause
                 null,                   // don't group the rows
                 null,                   // don't filter by row groups
-                null               // The sort order
+                orderBy,               // The sort order
+                limit
         )
 
         with(cursor) {
             while(moveToNext()){
                 val id = getInt(getColumnIndexOrThrow(BaseColumns._ID))
-                if (id == launchedNotificationId){
-                    val lat = getDouble(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_LAT))
-                    val lon = getDouble(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_LON))
+                Log.d(TAG, "Cursor at $id")
+                val lat = getDouble(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_LAT))
+                val lon = getDouble(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_LON))
 
-                    val savedLocation = Location("point A")
-                    savedLocation.latitude = lat
-                    savedLocation.longitude = lon
+                val savedLocation = Location("point A")
+                savedLocation.latitude = lat
+                savedLocation.longitude = lon
 
-                    val coordinates = "${savedLocation.latitude}, ${savedLocation.longitude}"
-                    Log.e(TAG, "onLocationChanged: $coordinates")
+                val coordinates = "${savedLocation.latitude}, ${savedLocation.longitude}"
+                Log.e(TAG, "onLocationChanged: $coordinates")
 
-                    val distance = currentlocation.distanceTo(savedLocation)
-                    Log.e(TAG, "#### COMPUTED DISTANDE  ####    $distance ")
+                val distance = currentlocation.distanceTo(savedLocation)
+                Log.e(TAG, "#### COMPUTED DISTANDE  ####    $distance ")
 
-                    if (distance > DISTANCE_ACCURACY) {
-                        // cancel notification
-                        mNM.cancel(launchedNotificationId)
-                        notificationON = !notificationON
+                if (distance > DISTANCE_ACCURACY) {
+                    // cancel notification
+                    mNM.cancel(launchedNotificationId)
+                    notificationON = !notificationON
+                } else {
+                    // launch-update notification
+                    val title = getString(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_TITLE))
+                    val message = getString(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_MESSAGE))
+                    val creationDate = getString(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_DATE))
+                    if (notificationON){
+                        updateNotification(launchedNotificationId, title, message, creationDate, distance.toInt().toString())
                     } else {
-                        // launch-update notification
-                        val title = getString(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_TITLE))
-                        val message = getString(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_MESSAGE))
-                        val creationDate = getString(getColumnIndexOrThrow(geoMessagesEntry.COLUMN_NAME_DATE))
-                        if (notificationON){
-                            updateNotification(launchedNotificationId, title, message, creationDate, distance.toInt().toString())
-                        } else {
-                            showNotification(launchedNotificationId, title, message, creationDate, distance.toInt().toString())
-                            notificationON = !notificationON
-                        }
+                        showNotification(launchedNotificationId, title, message, creationDate, distance.toInt().toString())
+                        notificationON = !notificationON
                     }
                 }
             }
